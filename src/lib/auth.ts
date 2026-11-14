@@ -27,7 +27,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Ingresa tu correo y contraseña");
         }
 
-        const user = findUserByEmail(credentials.email);
+        const user = await findUserByEmail(credentials.email);
         if (!user) throw new Error("Credenciales inválidas");
 
         // ¿La cuenta está bloqueada?
@@ -41,21 +41,34 @@ export const authOptions: NextAuthOptions = {
         if (!valid) {
           const attempts = user.failedAttempts + 1;
           if (attempts >= MAX_ATTEMPTS) {
-            updateUser(user.id, { failedAttempts: 0, lockUntil: Date.now() + LOCK_TIME_MS });
+            await updateUser(user.id, { failedAttempts: 0, lockUntil: Date.now() + LOCK_TIME_MS });
             throw new Error(
               `Cuenta bloqueada por ${LOCK_TIME_MS / 60000} minutos tras ${MAX_ATTEMPTS} intentos fallidos`
             );
           }
-          updateUser(user.id, { failedAttempts: attempts, lockUntil: null });
+          await updateUser(user.id, { failedAttempts: attempts, lockUntil: null });
           throw new Error(`Contraseña incorrecta. Te quedan ${MAX_ATTEMPTS - attempts} intento(s)`);
         }
 
         // Login correcto: se reinicia el contador
-        updateUser(user.id, { failedAttempts: 0, lockUntil: null });
+        await updateUser(user.id, { failedAttempts: 0, lockUntil: null });
         return { id: user.id, name: user.name, email: user.email };
       },
     }),
   ],
+  callbacks: {
+    // Guarda el proveedor usado (google, github o credentials) para mostrarlo en la interfaz
+    async jwt({ token, account }) {
+      if (account) token.provider = account.provider;
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) session.user.provider = token.provider;
+      // En componentes de servidor NextAuth no envía "expires", así que se toma del JWT
+      if (typeof token.exp === "number") session.expiresAt = token.exp;
+      return session;
+    },
+  },
   session: { strategy: "jwt" },
   pages: { signIn: "/signIn" },
   secret: process.env.NEXTAUTH_SECRET,

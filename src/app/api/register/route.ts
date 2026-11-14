@@ -17,13 +17,13 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (findUserByEmail(email)) {
+  if (await findUserByEmail(email)) {
     return NextResponse.json({ error: "Ese correo ya está registrado" }, { status: 409 });
   }
 
   // Cifrado de la contraseña con bcrypt (10 rondas de salt)
   const hashed = await bcrypt.hash(password, 10);
-  createUser({ name, email, password: hashed });
+  await createUser({ name, email, password: hashed });
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }
